@@ -9,6 +9,23 @@ spec:
     runAsUser: 1000
     runAsGroup: 1000
     fsGroup: 1000
+  initContainers:
+  - name: fix-permissions
+    image: busybox:latest
+    securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      echo "Setting permissions on /outputs"
+      chown -R 1000:1000 /outputs
+      chmod -R 755 /outputs
+      echo "Permissions set successfully"
+      ls -la /outputs
+    volumeMounts:
+    - mountPath: /outputs
+      name: out
   containers:
   - name: textgen
     image: pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime
@@ -28,6 +45,8 @@ spec:
         memory: "4Gi"
         cpu: "1"
     env:
+    - name: HOME
+      value: /home/pytorch 
     - name: MODEL_ID
       value: Qwen/Qwen2.5-0.5B-Instruct
     - name: PROMPT
@@ -45,15 +64,45 @@ spec:
       name: out
     - mountPath: /tmp
       name: tmp-storage
+    - mountPath: /home/pytorch
+      name: home-storage
     command: ["/bin/bash", "-lc"]
     args:
     - |
       set -e
       
+      # Ensure user home directory exists
+      mkdir -p /home/pytorch/.local/bin
+      
       echo "=== GPU Text Generation Starting ==="
-      echo "Timestamp: Sun Sep 28 09:44:37 UTC 2025"
-      echo "Model: "
-      echo "User: root"
+      echo "Timestamp: $(date)"
+      echo "Model: $MODEL_ID"
+      echo "User: $(whoami) (UID: $(id -u))"
+      
+      # Find Python executable
+      echo "Searching for Python executable..."
+      if command -v python3 >/dev/null 2>&1; then
+        PYTHON_CMD="python3"
+      elif command -v python >/dev/null 2>&1; then
+        PYTHON_CMD="python"
+      elif [ -f /usr/bin/python3 ]; then
+        PYTHON_CMD="/usr/bin/python3"
+      elif [ -f /usr/bin/python ]; then
+        PYTHON_CMD="/usr/bin/python"
+      elif [ -f /usr/local/bin/python3 ]; then
+        PYTHON_CMD="/usr/local/bin/python3"
+      elif [ -f /usr/local/bin/python ]; then
+        PYTHON_CMD="/usr/local/bin/python"
+      else
+        echo "ERROR: No Python executable found"
+        echo "Available executables in PATH:"
+        ls -la /usr/bin/python* 2>/dev/null || echo "No python* in /usr/bin"
+        ls -la /usr/local/bin/python* 2>/dev/null || echo "No python* in /usr/local/bin"
+        echo "PATH: $PATH"
+        exit 1
+      fi
+      echo "Using Python: $PYTHON_CMD"
+      $PYTHON_CMD --version
       
       # GPU check
       echo "=== GPU Status ==="
@@ -66,13 +115,13 @@ spec:
       # Install packages with retries
       echo "=== Installing Dependencies ==="
       for attempt in 1 2 3; do
-        echo "Install attempt /3"
-        if python -m pip -q install --upgrade pip --timeout=60 &&            python -m pip -q install transformers accelerate safetensors sentencepiece tiktoken --timeout=60; then
+        echo "Install attempt $attempt/3"
+        if $PYTHON_CMD -m pip -q install --upgrade pip --timeout=60 --user &&            $PYTHON_CMD -m pip -q install transformers accelerate safetensors sentencepiece tiktoken --timeout=60 --user; then
           echo "✓ Packages installed successfully"
           break
         else
-          echo "✗ Install failed, attempt "
-          if [  -eq 3 ]; then
+          echo "✗ Install failed, attempt $attempt"
+          if [ $attempt -eq 3 ]; then
             echo "ERROR: Failed to install packages after 3 attempts"
             exit 1
           fi
@@ -82,7 +131,7 @@ spec:
       
       # Verify installation
       echo "=== Verifying Installation ==="
-      python -c "
+      $PYTHON_CMD -c "
       import torch, transformers
       print(f'PyTorch: {torch.__version__}')
       print(f'Transformers: {transformers.__version__}')
@@ -93,7 +142,7 @@ spec:
       "
       
       echo "=== Running Text Generation ==="
-      python - <<'PY'
+      $PYTHON_CMD - <<'PY'
       import os, torch, traceback, time
       from transformers import AutoTokenizer, AutoModelForCausalLM
       
@@ -168,9 +217,9 @@ spec:
       
       echo "=== Job Complete ==="
       echo "Output file info:"
-      if [ -f "" ]; then
-        ls -la ""
-        echo "File size:  bytes"
+      if [ -f "$OUTPUT_PATH" ]; then
+        ls -la "$OUTPUT_PATH"
+        echo "File size: $(wc -c < "$OUTPUT_PATH") bytes"
       else
         echo "ERROR: Output file not created"
         exit 1
@@ -194,5 +243,8 @@ spec:
       path: /var/lib/gpu-text-outputs
       type: DirectoryOrCreate
   - name: tmp-storage
+    emptyDir:
+      sizeLimit: "1Gi"
+  - name: home-storage
     emptyDir:
       sizeLimit: "1Gi"
