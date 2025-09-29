@@ -144,6 +144,17 @@ kube-system    metrics-server-dfdccbf76-62m8j                                   
 
 ### GPU workload debug script
 
+A comprehensive cluster-wide GPU debugging script was developed to automate the diagnosis process. This script analyzes GPU configuration across all nodes in the cluster and provides detailed reports on:
+
+- Container runtime configuration issues
+- NVIDIA device plugin status
+- Container toolkit configuration
+- GPU resource availability
+- Pod status and events
+
+**Script Location**: [`task1/scripts/cluster_wide_gpu_debug.py`](./scripts/cluster_wide_gpu_debug.py)
+
+**Usage**:
 ```bash
 root@192-18-132-31:~# python3 cluster_wide_gpu_debug.py --namespace gpu-operator --max-workers 5 | less
 
@@ -310,5 +321,7 @@ NVIDIA GPU OPERATOR HELM CONFIGURATION:
 ### Potential Risks
 1. **Container Runtime Security**: Malformed configuration exposes security vulnerabilities
 2. **Configuration Drift**: Unmonitored changes can introduce security gaps
+
+
 
 *Technical overview for ML Engineers, Data Engineers, and Software Engineers.*
