@@ -56,10 +56,9 @@ veth pair routing: Packet goes through the pod's lxc+ interface
 Cilium host interface: Traffic routes to cilium_host (cluster gateway)
 eBPF processing: Cilium's eBPF programs handle:
 
-Source NAT (SNAT) - translates pod IP to host IP
-Policy enforcement
-Load balancing decisions
-
+- Source NAT (SNAT) - translates pod IP to host IP
+- Policy enforcement
+- Load balancing decisions
 
 Host routing: Packet forwarded to physical interface eno1
 External delivery: Packet sent to external world with host IP as source

@@ -31,14 +31,14 @@ Events:
   Warning  FailedCreatePodSandBox  4m24s (x279 over 64m)  kubelet  Failed to create pod sandbox: rpc error: code = Unknown desc = failed to get sandbox runtime: no runtime for "nvidia" is configured
 ```
 
-2. Confimed the containerd instance (`snap.k8s.containerd.service`) configuration and logs
+2. Confirmed the containerd instance (`snap.k8s.containerd.service`) configuration and logs
 
 ```bash
 root@192-18-132-31:~# cat /var/lib/k8s-containerd/k8s-containerd/etc/containerd/config.toml  | grep -i nvidia
 ```
 
 ```bash
-root@192-18-132-31:~# jounralctl -u snap.k8s.containerd.service -n 100
+root@192-18-132-31:~# journalctl -u snap.k8s.containerd.service -n 100
 ...
 ...
 
@@ -46,7 +46,7 @@ Sep 28 03:40:06 192-18-132-31 k8s.containerd[242547]: time="2025-09-28T03:40:06.
 -validation,Attempt:0,} failed" error="failed to get sandbox runtime: no runtime for \"nvidia\" is configured"
 ```
 
-3. Observe the Nvidia system containers and helm-chart configuration 
+3. Observe the NVIDIA system containers and helm-chart configuration 
 
 ```bash
  kubectl get pods -n gpu-operator -o wide
@@ -61,7 +61,7 @@ nvidia-cuda-validator-btjl6                                       0/1     Comple
 nvidia-dcgm-exporter-zb2zm                                        1/1     Running            0               77m   10.1.0.40    192-18-132-31   <none>           <none>
 nvidia-device-plugin-daemonset-7npm6                              1/1     Running            0               77m   10.1.0.219   192-18-132-31   <none>           <none>
 nvidia-operator-validator-gbcq4                                   1/1     Running            0               77m   10.1.0.154   192-18-132-31   <none>           <none>
-````
+```
 
 ```bash
 root@192-18-132-31:~# helm get values gpu-operator-1758912452 -n gpu-operator --all -o yaml | grep -A20 -i "toolkit:"
@@ -114,8 +114,8 @@ validator:
 - **Details**: System running 2 containerd instances:
   - Kubernetes one: `snap.k8s.containerd.service` under `/var/lib/k8s-containerd/k8s-containerd/` (non-standard path)
   - Default one: `containerd.service` (standard convention)
-  - Helm chart for `gpu-operator-1758912452 -n gpu-operator` is confiure the containerd instance (`snap.k8s.containerd.service`) so Kubernetes and 
-    associaited containerd wont work conrrectly. By default helm chart assume `CONTAINERD_CONFIG` and `CONTAINERD_SOCKET` to `/etc/containerd/config.toml` and `/run/containerd/containerd.sock`
+  - Helm chart for `gpu-operator-1758912452 -n gpu-operator` is configured for the containerd instance (`snap.k8s.containerd.service`) so Kubernetes and 
+    associated containerd won't work correctly. By default helm chart assumes `CONTAINERD_CONFIG` and `CONTAINERD_SOCKET` to `/etc/containerd/config.toml` and `/run/containerd/containerd.sock`
 
 - **Impact**: Kubernetes couldn't start GPU containers or run NVIDIA system containers properly
 
@@ -176,14 +176,14 @@ cat /var/lib/k8s-containerd/k8s-containerd/etc/containerd/config.toml | grep -A 
 kubectl get runtimeclass
 ```
 
-#### Step 2: Fix GPU opertoar helm chart configuration 
+#### Step 2: Fix GPU operator helm chart configuration 
 Add the following configuration to GPU operator helm chart:
 
 ```yaml
 
 helm get values gpu-operator-1758912452 -n gpu-operator --all -o yaml > config.yaml
 
-#add the following conguration to toolkit.env
+#add the following configuration to toolkit.env
 toolkit:                                                                                                               
   enabled: true                                   
   env:                                                                                                                 
@@ -212,15 +212,15 @@ kubectl get pods
 python3 cluster_wide_gpu_debug.py --namespace gpu-operator --max-workers 5
 ```
 
-## Netowrking issue
-Workload were running now, however failed during the runtime, `gpu-textgen` were termintated with the error.
+## Networking issue
+Workloads were running now, however failed during the runtime, `gpu-textgen` was terminated with the error.
 
-To udnerstand howe Kubernetes networking works, please refer the [Kubernetes
-networking architecure](./nw-architecture.md).
+To understand how Kubernetes networking works, please refer to the [Kubernetes
+networking architecture](./nw-architecture.md).
 
 ### Observations
 
-1. Pod were in error state and following logs shows 'DNS lookup' issue when running pip command
+1. Pod was in error state and following logs show 'DNS lookup' issue when running pip command
 
 ```bash
 root@192-18-132-31:~/config/gpu-opertor# k -n default logs gpu-textgen                                                                                                                                                                             
@@ -230,35 +230,35 @@ tion: [Errno -3] Temporary failure in name resolution')': /simple/pip/
 .....
 ```
 
-### Secondary Issue: Netwoking failures
+### Secondary Issue: Networking failures
 
-- **Problem**: Upon observing the application logs, workload were failing to download the python dependencies from internet
+- **Problem**: Upon observing the application logs, workloads were failing to download the python dependencies from internet
 - **Error**: `[Errno -3] Temporary failure in name resolution`
-- **Details**: As python program trying to download extenal dependencies from the internet, DNS resoution failed.
-  - Essential either Kubernetes or host networking is not allowing to perform the DNS query or blocking all traffic.
+- **Details**: As python program trying to download external dependencies from the internet, DNS resolution failed.
+  - Essentially either Kubernetes or host networking is not allowing to perform the DNS query or blocking all traffic.
   - Default one: `containerd.service` (standard convention)
-- **Impact**: Kubernetes couldn't route the traffic to extenal world.
+- **Impact**: Kubernetes couldn't route the traffic to external world.
 
 #### Root Cause Analysis
 
-- As Kubernetes traffic(coredns) is trying to resolev the DNS name, its been served traffic somehow dropiing or issues persists with 
+- As Kubernetes traffic(coredns) is trying to resolve the DNS name, its been served traffic somehow dropping or issues persist with 
 coredns.
-- In order to confirm if issues is just with DNS or any other traffic, a test is executed [network-debug-advanced](./scripts/debug.yaml) which run 
-various test such as ping, digg, curl and tracepoint.
-- Its been observed all traffic were blocked originating from the Kuberenetes network.
-- Upon running the same DNS query from the host, DNS were able to resolve the queries. Which made it clear, an issues is with the Kubernetes netowrking.
-- Cilium traffic traffic been observed through `kubectl -n kube-system exec -it cilium-dwwp7 -- cilium monitor --from 240`, traffic were originating from 
-coredns pod, however no traffic were returning back from the extenal world
-- Running tcpdump, its been observed the traffic were not reachin to the host
+- In order to confirm if issues is just with DNS or any other traffic, a test is executed [network-debug-advanced](./scripts/debug.yaml) which runs 
+various tests such as ping, dig, curl and tracepoint.
+- It's been observed all traffic were blocked originating from the Kubernetes network.
+- Upon running the same DNS query from the host, DNS were able to resolve the queries. Which made it clear, an issue is with the Kubernetes networking.
+- Cilium traffic has been observed through `kubectl -n kube-system exec -it cilium-dwwp7 -- cilium monitor --from 240`, traffic were originating from 
+coredns pod, however no traffic were returning back from the external world
+- Running tcpdump, it's been observed the traffic were not reaching to the host
 N/W interface
 ```bash
 Sep 28 09:36:20 192-18-132-31 kernel: [54237.164083] [UFW BLOCK] IN=lxc4f39491e6165 OUT=eno1 MAC=ea:34:8a:6c:c4:4f:0a:67:41:64:51:44:08:00 SRC=10.1.0.185 DST=1.1.1.1 LEN=45 TOS=0x00 PREC=0x00 TTL=62 ID=4481 DF PROTO=UDP SPT=59834 DPT=53 LEN=25 MARK=0xa1700f00 
 ```
--  Possibly its routing issue or firewall, upon observing firewall logs, its found traffic is getting blocked from the coredns IP 
+-  Possibly it's routing issue or firewall, upon observing firewall logs, it's found traffic is getting blocked from the coredns IP 
 ```bash
 Sep 28 09:37:00 192-18-132-31 kernel: [54277.196906] [UFW BLOCK] IN=lxc4f39491e6165 OUT=eno1 MAC=ea:34:8a:6c:c4:4f:0a:67:41:64:51:44:08:00 SRC=10.1.0.185 DST=8.8.8.8 LEN=45 TOS=0x00 PREC=0x00 TTL=62 ID=33338 DF PROTO=UDP SPT=39480 DPT=53 LEN=25 MARK=0xa1700f00 
 ```
-- This traffic from the cilium host(virtual router) to host interface were blocked by the firewall rules/IP Table rule
+- This traffic from the cilium host(virtual router) to host interface was blocked by the firewall rules/IP Table rule
 
 ### Resolution Process
 
@@ -303,7 +303,7 @@ Anywhere (v6) on eno1      ALLOW FWD   Anywhere (v6) on lxc+
 Anywhere (v6) on lxc+      ALLOW FWD   Anywhere (v6) on eno1     
 ```
 
-####  Step 3: Recreate the pod using `/home/ubuntu/gpu-workload.yml`
+####  Step 3: Recreate the pod using `/home/ubuntu/gpu-workload.yaml`
 ```bash
 root@192-18-132-31:~# k delete -f /home/ubuntu/gpu-workload.yaml 
 pod "gpu-textgen" deleted from default namespace
@@ -311,7 +311,7 @@ root@192-18-132-31:~# k create -f /home/ubuntu/gpu-workload.yaml
 pod/gpu-textgen created
 ```
 
-####  Step 3: Confirm the restult
+####  Step 3: Confirm the result
 ```bash
 root@192-18-132-31:~# k get pods
 NAME                     READY   STATUS      RESTARTS   AGE
