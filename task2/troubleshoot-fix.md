@@ -127,7 +127,7 @@ A comprehensive tool has been developed to automatically detect, fix, and verify
 
 **Script Location**: [`task2/scripts/cluster_wide_gpu_debug.py`](./scripts/cluster_wide_gpu_debug.py)
 
-#### Usage Options
+##### Usage Options
 
 ```bash
 # Check for issues only
@@ -212,6 +212,118 @@ kubectl get pods
 python3 cluster_wide_gpu_debug.py --namespace gpu-operator --max-workers 5
 ```
 
+## Netowrking issue
+Workload were running now, however failed during the runtime, `gpu-textgen` were termintated with the error.
+
+To udnerstand howe Kubernetes networking works, please refer the [Kubernetes
+networking architecure](./nw-architecture.md).
+
+### Observations
+
+1. Pod were in error state and following logs shows 'DNS lookup' issue when running pip command
+
+```bash
+root@192-18-132-31:~/config/gpu-opertor# k -n default logs gpu-textgen                                                                                                                                                                             
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x773dc193ed70>: Failed to establish a new connec
+tion: [Errno -3] Temporary failure in name resolution')': /simple/pip/                                                                                                                                                                      
+.....
+.....
+```
+
+### Secondary Issue: Netwoking failures
+
+- **Problem**: Upon observing the application logs, workload were failing to download the python dependencies from internet
+- **Error**: `[Errno -3] Temporary failure in name resolution`
+- **Details**: As python program trying to download extenal dependencies from the internet, DNS resoution failed.
+  - Essential either Kubernetes or host networking is not allowing to perform the DNS query or blocking all traffic.
+  - Default one: `containerd.service` (standard convention)
+- **Impact**: Kubernetes couldn't route the traffic to extenal world.
+
+#### Root Cause Analysis
+
+- As Kubernetes traffic(coredns) is trying to resolev the DNS name, its been served traffic somehow dropiing or issues persists with 
+coredns.
+- In order to confirm if issues is just with DNS or any other traffic, a test is executed [network-debug-advanced](./scripts/debug.yaml) which run 
+various test such as ping, digg, curl and tracepoint.
+- Its been observed all traffic were blocked originating from the Kuberenetes network.
+- Upon running the same DNS query from the host, DNS were able to resolve the queries. Which made it clear, an issues is with the Kubernetes netowrking.
+- Cilium traffic traffic been observed through `kubectl -n kube-system exec -it cilium-dwwp7 -- cilium monitor --from 240`, traffic were originating from 
+coredns pod, however no traffic were returning back from the extenal world
+- Running tcpdump, its been observed the traffic were not reachin to the host
+N/W interface
+```bash
+Sep 28 09:36:20 192-18-132-31 kernel: [54237.164083] [UFW BLOCK] IN=lxc4f39491e6165 OUT=eno1 MAC=ea:34:8a:6c:c4:4f:0a:67:41:64:51:44:08:00 SRC=10.1.0.185 DST=1.1.1.1 LEN=45 TOS=0x00 PREC=0x00 TTL=62 ID=4481 DF PROTO=UDP SPT=59834 DPT=53 LEN=25 MARK=0xa1700f00 
+```
+-  Possibly its routing issue or firewall, upon observing firewall logs, its found traffic is getting blocked from the coredns IP 
+```bash
+Sep 28 09:37:00 192-18-132-31 kernel: [54277.196906] [UFW BLOCK] IN=lxc4f39491e6165 OUT=eno1 MAC=ea:34:8a:6c:c4:4f:0a:67:41:64:51:44:08:00 SRC=10.1.0.185 DST=8.8.8.8 LEN=45 TOS=0x00 PREC=0x00 TTL=62 ID=33338 DF PROTO=UDP SPT=39480 DPT=53 LEN=25 MARK=0xa1700f00 
+```
+- This traffic from the cilium host(virtual router) to host interface were blocked by the firewall rules/IP Table rule
+
+### Resolution Process
+
+Following rules were configured to through firewall (ufw).
+
+#### Step 1: Configure the firewall rules
+```bash
+# Allow incoming traffic from lxc(any container interface) to eno1(host interface)
+ufw route allow in on lxc+ out on eno1
+
+# Allow incoming traffic from  eno1(host interface) to lxc(any container interface)
+ufw route allow in on eno1 out on lxc+
+
+# Allow incoming traffic from 10.0.0.0/8 (Kubernetes pod/service)
+ufw allow from 10.0.0.0/8
+
+# Allow outgoing traffic to 10.0.0.0/8 (Kubernetes pod/service)
+ufw allow out to 10.0.0.0/8
+```
+
+####  Step 2: Verify the rules
+```bash
+ufw reload
+
+ufw status verbose
+Status: active
+Logging: on (medium)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW IN    Anywhere                  
+Anywhere                   ALLOW IN    10.0.0.0/8                
+22/tcp (v6)                ALLOW IN    Anywhere (v6)             
+
+10.0.0.0/8                 ALLOW OUT   Anywhere                  
+
+Anywhere on eno1           ALLOW FWD   Anywhere on lxc+          
+Anywhere on lxc+           ALLOW FWD   Anywhere on eno1          
+Anywhere (v6) on eno1      ALLOW FWD   Anywhere (v6) on lxc+     
+Anywhere (v6) on lxc+      ALLOW FWD   Anywhere (v6) on eno1     
+```
+
+####  Step 3: Recreate the pod using `/home/ubuntu/gpu-workload.yml`
+```bash
+root@192-18-132-31:~# k delete -f /home/ubuntu/gpu-workload.yaml 
+pod "gpu-textgen" deleted from default namespace
+root@192-18-132-31:~# k create -f /home/ubuntu/gpu-workload.yaml 
+pod/gpu-textgen created
+```
+
+####  Step 3: Confirm the restult
+```bash
+root@192-18-132-31:~# k get pods
+NAME                     READY   STATUS      RESTARTS   AGE
+gpu-textgen              0/1     Completed   0          50s
+
+root@192-18-132-31:~# k logs gpu-textgen
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+`torch_dtype` is deprecated! Use `dtype` instead!
+OK: /outputs/textgen.tx
+```
+
 ### Prevention Measures
 - **Automated Detection**: The cluster now has automated tools to detect this type of issue
 - **Monitoring**: Added alerts for GPU configuration problems
@@ -221,7 +333,7 @@ python3 cluster_wide_gpu_debug.py --namespace gpu-operator --max-workers 5
 1. **Check Pod Status**: `kubectl get pods` - look for "ContainerCreating" or "Error" states
 2. **Check Logs**: `kubectl describe pod <pod-name>` for detailed error messages
 3. **Contact Platform Team**: We have automated tools to fix most GPU configuration issues
-4. **Use the Diagnostic Tool**: `python3 cluster_wide_gpu_debug.py --check` to diagnose issues
+4. **Use the Diagnostic Tool**: `python3 cluster_wide_gpu_debug.py` to diagnose issues
 
 ### Mitigation Strategies
 1. **Configuration Management**: Version control for containerd configurations
@@ -241,7 +353,3 @@ python3 cluster_wide_gpu_debug.py --namespace gpu-operator --max-workers 5
 2. **Enhanced Monitoring**: More comprehensive GPU resource monitoring
 3. **Team Training**: Regular training sessions on GPU troubleshooting
 4. **Process Improvement**: Streamlined procedures for GPU issue resolution
-
----
-
-*This investigation demonstrates systematic problem-solving, security awareness, and clear communication suitable for diverse technical audiences including ML Engineers, Data Engineers, and Software Engineers.*
