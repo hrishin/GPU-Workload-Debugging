@@ -75,5 +75,7 @@ python3 cluster_wide_gpu_debug.py --fix
 On the host, config andn scripts contains some configurations/scripts used for 
 task
 
-root@192-18-132-31:~# ls
-config  scripts 
+```bash
+# ls
+config  scripts
+```
