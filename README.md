@@ -70,11 +70,10 @@ python3 cluster_wide_gpu_debug.py --fix
    - Recommended network policy implementations
    - Enhanced pod security configurations
 
-## 🎓 Learning Outcomes
+## Workspace
 
-This project demonstrates:
-- Deep understanding of Kubernetes GPU integration
-- Container runtime architecture and configuration
-- Network troubleshooting and security hardening
-- Automation and operational excellence
-- Production-ready security practices
+On the host, config andn scripts contains some configurations/scripts used for 
+task
+
+root@192-18-132-31:~# ls
+config  scripts 
