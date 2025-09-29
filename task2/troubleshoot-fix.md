@@ -341,6 +341,108 @@ OK: /outputs/textgen.tx
 3. **Access Controls**: Proper RBAC for GPU resource allocation
 4. **Monitoring**: Continuous monitoring of GPU resource usage and access patterns
 
+## Communication with ML Ops Engineers
+
+### Quick Response Process
+
+When GPU workloads fail, follow this simple communication process:
+
+#### 1. Initial Response (0-5 minutes)
+- Create tracking ticket
+- Set up Slack channel: `#gpu-issues-[date]`
+- Notify ML Ops team
+
+#### 2. Regular Updates (Every 15 minutes)
+```
+🔄 UPDATE - [Time]
+Status: [Investigating/Fixing/Testing/Resolved]
+Progress: [What we found/did]
+ETA: [Expected fix time]
+```
+
+#### 3. Resolution Confirmation
+```
+✅ FIXED - [Time]
+Issue: GPU workloads stuck in ContainerCreating
+Solution: Fixed containerd config + firewall rules
+Status: All ML jobs can run normally
+```
+
+#### Resolution Summary
+```
+Subject: RESOLVED: GPU Issues Fixed
+
+Status: FIXED
+Root Cause: Containerd misconfiguration + networking issues
+Solution: Updated GPU operator config + firewall rules
+
+All GPU workloads are now functional. Please retry failed ML jobs.
+
+[Platform Team]
+```
+
+#### Technical Details (For ML Engineers)
+```
+**Root Cause**: 
+- Snap-based containerd instance lacks proper NVIDIA runtime configuration
+- System running two containerd instances with NVIDIA Container Toolkit configured for the wrong instance
+- Kubernetes couldn't start GPU containers or run NVIDIA system containers properly
+
+**Resolution Applied**:
+- Updated GPU operator helm chart configuration
+- Fixed containerd runtime configuration paths
+- Configured proper firewall rules for Kubernetes networking
+
+**Verification Steps**:
+- GPU workloads now successfully create containers
+- DNS resolution working for external dependencies
+- All GPU resources accessible to ML workloads
+```
+
+#### Follow-up Communication (After Resolution)
+```
+Subject: GPU Job Failures - RESOLVED
+
+Hi [ML Team],
+
+✅ **RESOLUTION COMPLETE**
+
+The GPU job failures have been resolved. Here's what was fixed:
+
+1. **Container Runtime**: Fixed containerd configuration for NVIDIA runtime
+2. **Networking**: Resolved DNS resolution issues blocking external dependencies
+3. **Firewall**: Updated rules to allow Kubernetes pod traffic
+
+**What This Means for You**:
+- All GPU workloads should now run successfully
+- No changes needed to your existing job configurations
+- GPU resources are fully available for training/inference
+
+**Prevention**: We've implemented automated monitoring to prevent similar issues in the future.
+
+Please retry your failed jobs - they should complete successfully now.
+
+If you encounter any issues, please let us know immediately.
+
+Best regards,
+[Platform Team]
+```
+
+#### Key Points to Emphasize
+1. **Transparency**: Explain what went wrong in simple terms
+2. **Impact**: Clearly state how it affects their work
+3. **Resolution**: Describe what was fixed and how
+4. **Timeline**: Provide clear expectations for resolution
+5. **Prevention**: Mention steps taken to prevent recurrence
+6. **Support**: Offer immediate help if issues persist
+
+#### Communication Channels
+- **Immediate**: Slack/Teams message for urgent issues
+- **Status Updates**: Regular updates during resolution process
+- **Post-Resolution**: Follow-up to confirm everything is working
+- **Detailed**: Page/Document contains every details of issues and resulution 
+with the timeline
+
 ## Next Steps
 
 ### Immediate Actions
