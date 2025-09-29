@@ -1,0 +1,9 @@
+toolkit:
+  env:
+  - name: CONTAINERD_CONFIG
+    value: /var/lib/k8s-containerd/k8s-containerd/etc/containerd/config.toml
+  - name: CONTAINERD_SOCKET
+    value: /var/lib/k8s-containerd/k8s-containerd/run/containerd/containerd.sock
+  - name: CONTAINERD_RUNTIME_CLASS
+    value: nvidia
+validator:
