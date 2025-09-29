@@ -12,10 +12,10 @@ This project addresses critical GPU workload failures in Kubernetes environments
 bsr_assignment/
 ├── README.md                           # This file - Project overview
 ├── task1/                              # GPU Failure Diagnosis
-│   ├── README.md                       # Detailed diagnosis analysis
+│   ├── README.md                       # Detailed diagnosis analysis(slide 1 - Substitute)
 │   └── scripts/
 │       └── cluster_wide_gpu_debug.py   # Automated diagnostic tool
-├── task2/                              # Resolution & Networking
+├── task2/                              # Resolution & fixes (slide 2 - Substitute)
 │   ├── README.md                       # Complete resolution process
 │   ├── nw-architecture.md              # Kubernetes networking analysis
 │   ├── output.md                       # Task output documentation
@@ -75,5 +75,7 @@ python3 cluster_wide_gpu_debug.py --fix
 On the host, config andn scripts contains some configurations/scripts used for 
 task
 
-root@192-18-132-31:~# ls
-config  scripts 
+```bash
+# ls
+config  scripts
+```
