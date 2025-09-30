@@ -105,19 +105,6 @@ graph TD
 
 ## Investigation Process
 
-### Root Cause
-Malformed containerd configuration + NVIDIA container toolkit configured for wrong containerd instance.
-
-### Root Cause Analysis
-
-#### Primary Issue: Runtime Configuration
-- **Problem**: Malformed container runtime (containerd) configuration couldn't find NVIDIA runtime configurations
-- **Error**: `failed to get sandbox runtime: no runtime for "Nvidia" is configured`
-- **Details**: System running 2 containerd instances:
-  - Kubernetes one: `snap.k8s.containerd.service` under `/var/run/k8s-containerd` (non-standard path)
-  - Default one: `containerd.service` (standard convention)
-- **Impact**: Kubernetes couldn't start GPU containers or run NVIDIA system containers properly
-
 ### Observations
 
 #### Current Workloads Status
@@ -298,6 +285,8 @@ NVIDIA GPU OPERATOR HELM CONFIGURATION:
    Then upgrade the Helm release:
    helm upgrade gpu-operator-1758912452 nvidia/gpu-operator -n gpu-operator -f values.yaml
 ```
+### Root Cause
+
 ### Analysis 
 
 - **Issue Identification**: 
@@ -310,6 +299,17 @@ NVIDIA GPU OPERATOR HELM CONFIGURATION:
   - As a side effect, some of the NVIDIA system pods that try to run with the `nvidia` runtime were also failing to run.
   - Upon further inspection of the containerd configuration file, it was observed that the configuration was not properly set up to work with 
     this instance, causing none of the pods to run or work in a healthy state. 
+
+### Root Cause Analysis
+Malformed containerd configuration + NVIDIA container toolkit configured for wrong containerd instance.
+
+#### Primary Issue: Runtime Configuration
+- **Problem**: Malformed container runtime (containerd) configuration couldn't find NVIDIA runtime configurations
+- **Error**: `failed to get sandbox runtime: no runtime for "Nvidia" is configured`
+- **Details**: System running 2 containerd instances:
+  - Kubernetes one: `snap.k8s.containerd.service` under `/var/run/k8s-containerd` (non-standard path)
+  - Default one: `containerd.service` (standard convention)
+- **Impact**: Kubernetes couldn't start GPU containers or run NVIDIA system containers properly
 
 ### Further Diagnosis
 - Analyzed pod status and events using `kubectl`
